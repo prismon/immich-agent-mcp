@@ -1,0 +1,49 @@
+# MCP Immich Server Configuration
+
+# Server settings
+listen_addr: ":8080"
+transport_mode: "http"  # "http" or "stdio"
+
+# Immich connection (required)
+immich_url: "https://immich.example.com"
+immich_api_key: "your-immich-api-key-here"
+
+# Authentication mode
+# Options: "none", "api_key", "oauth", "both"
+auth_mode: "none"
+
+# API Key authentication (when auth_mode includes api_key)
+api_keys:
+  # - "client-key-1"
+  # - "client-key-2"
+
+# OAuth configuration (optional, when auth_mode includes oauth)
+# oauth:
+#   client_id: "your-client-id"
+#   client_secret: "your-client-secret"
+#   redirect_url: "http://localhost:8080/callback"
+#   auth_url: "https://auth.example.com/authorize"
+#   token_url: "https://auth.example.com/token"
+#   scopes:
+#     - "photos.read"
+#     - "photos.write"
+
+# Cache settings
+cache_ttl: "5m"
+cache_max_size: 1000
+
+# Rate limiting
+rate_limit_per_second: 100
+rate_limit_burst: 200
+
+# Timeouts
+request_timeout: "30s"
+immich_timeout: "30s"
+
+# Logging
+log_level: "info"  # trace, debug, info, warn, error
+log_json: false
+
+# Metrics (optional)
+enable_metrics: false
+metrics_port: ":9090"
