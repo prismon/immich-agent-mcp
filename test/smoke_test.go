@@ -159,7 +159,7 @@ func mustMarshal(t *testing.T, v interface{}) []byte {
 	return data
 }
 
-// TestSpecificPhotoID tests retrieving the specific photo 4f4dfc4c-b1be-45aa-94cc-71661084ce9f
+// TestSpecificPhotoID tests retrieving a specific photo by ID
 func TestSpecificPhotoID(t *testing.T) {
 	cfg, ok := LoadTestConfig()
 	if !ok {
@@ -167,7 +167,11 @@ func TestSpecificPhotoID(t *testing.T) {
 	}
 
 	srv := setupTestServer(t, cfg)
-	specificPhotoID := "4f4dfc4c-b1be-45aa-94cc-71661084ce9f"
+	// Use environment variable or skip test if not set
+	specificPhotoID := os.Getenv("TEST_PHOTO_ID")
+	if specificPhotoID == "" {
+		t.Skip("TEST_PHOTO_ID not set, skipping specific photo test")
+	}
 
 	t.Run("get specific photo metadata", func(t *testing.T) {
 		result, err := callTool(t, srv, "getPhotoMetadata", map[string]interface{}{
@@ -177,7 +181,7 @@ func TestSpecificPhotoID(t *testing.T) {
 			"includeAlbums": true,
 		})
 
-		require.NoError(t, err, "Should successfully retrieve photo 4f4dfc4c-b1be-45aa-94cc-71661084ce9f")
+		require.NoError(t, err, "Should successfully retrieve photo by ID")
 		assert.NotNil(t, result)
 
 		res, ok := result.(map[string]interface{})
