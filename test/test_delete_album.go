@@ -1,3 +1,5 @@
+//go:build ignore
+
 package main
 
 import (
@@ -69,30 +71,30 @@ func main() {
 
 	// UNCOMMENT BELOW TO ACTUALLY DELETE (BE VERY CAREFUL!)
 	/*
-	fmt.Println("\n=== ACTUAL DELETION - Moving 10 assets to trash ===")
-	deleteResult := callTool(ctx, mcpServer, "deleteAlbumContents", map[string]interface{}{
-		"albumName":   "Bad Thumbnails",
-		"dryRun":      false,
-		"forceDelete": false, // false = move to trash (safer)
-		"maxAssets":   10,    // Only delete 10 for testing
-		"batchSize":   5,     // Delete in batches of 5
-	})
+		fmt.Println("\n=== ACTUAL DELETION - Moving 10 assets to trash ===")
+		deleteResult := callTool(ctx, mcpServer, "deleteAlbumContents", map[string]interface{}{
+			"albumName":   "Bad Thumbnails",
+			"dryRun":      false,
+			"forceDelete": false, // false = move to trash (safer)
+			"maxAssets":   10,    // Only delete 10 for testing
+			"batchSize":   5,     // Delete in batches of 5
+		})
 
-	if deleteResult != nil {
-		if result, ok := deleteResult.(map[string]interface{}); ok {
-			fmt.Printf("\n✅ Operation completed!\n")
-			fmt.Printf("Deleted: %v assets\n", result["deleted"])
-			fmt.Printf("Failed: %v assets\n", result["failed"])
-			fmt.Printf("Message: %v\n", result["message"])
+		if deleteResult != nil {
+			if result, ok := deleteResult.(map[string]interface{}); ok {
+				fmt.Printf("\n✅ Operation completed!\n")
+				fmt.Printf("Deleted: %v assets\n", result["deleted"])
+				fmt.Printf("Failed: %v assets\n", result["failed"])
+				fmt.Printf("Message: %v\n", result["message"])
 
-			if errors, ok := result["errors"].([]interface{}); ok && len(errors) > 0 {
-				fmt.Println("\nErrors encountered:")
-				for _, err := range errors {
-					fmt.Printf("  - %v\n", err)
+				if errors, ok := result["errors"].([]interface{}); ok && len(errors) > 0 {
+					fmt.Println("\nErrors encountered:")
+					for _, err := range errors {
+						fmt.Printf("  - %v\n", err)
+					}
 				}
 			}
 		}
-	}
 	*/
 
 	// Check album status after

@@ -10,28 +10,28 @@ import (
 // Config holds all application configuration
 type Config struct {
 	// Server settings
-	ListenAddr     string `mapstructure:"listen_addr"`
+	ListenAddr string `mapstructure:"listen_addr"`
 
 	// Immich connection
 	ImmichURL    string `mapstructure:"immich_url"`
 	ImmichAPIKey string `mapstructure:"immich_api_key"`
 
 	// Authentication
-	AuthMode string   `mapstructure:"auth_mode"` // "none", "api_key", "oauth", "both"
-	APIKeys  []string `mapstructure:"api_keys"`
+	AuthMode string       `mapstructure:"auth_mode"` // "none", "api_key", "oauth", "both"
+	APIKeys  []string     `mapstructure:"api_keys"`
 	OAuth    *OAuthConfig `mapstructure:"oauth"`
 
 	// Cache settings
-	CacheTTL           time.Duration `mapstructure:"cache_ttl"`
-	CacheMaxSize       int          `mapstructure:"cache_max_size"`
+	CacheTTL     time.Duration `mapstructure:"cache_ttl"`
+	CacheMaxSize int           `mapstructure:"cache_max_size"`
 
 	// Rate limiting
 	RateLimitPerSecond int `mapstructure:"rate_limit_per_second"`
 	RateLimitBurst     int `mapstructure:"rate_limit_burst"`
 
 	// Timeouts
-	RequestTimeout  time.Duration `mapstructure:"request_timeout"`
-	ImmichTimeout   time.Duration `mapstructure:"immich_timeout"`
+	RequestTimeout time.Duration `mapstructure:"request_timeout"`
+	ImmichTimeout  time.Duration `mapstructure:"immich_timeout"`
 
 	// Logging
 	LogLevel string `mapstructure:"log_level"`
@@ -80,6 +80,8 @@ func Load(configFile string) (*Config, error) {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 
+	applyDerivedDefaults(&cfg, v)
+
 	// Validate required fields
 	if err := cfg.Validate(); err != nil {
 		return nil, err
@@ -97,7 +99,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("api_keys", []string{})
 
 	// Cache defaults
-	v.SetDefault("cache_ttl", "5m")
+	v.SetDefault("cache_ttl", 5*time.Minute)
 	v.SetDefault("cache_max_size", 1000)
 
 	// Rate limiting defaults
@@ -105,8 +107,8 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("rate_limit_burst", 200)
 
 	// Timeout defaults
-	v.SetDefault("request_timeout", "30s")
-	v.SetDefault("immich_timeout", "30s")
+	v.SetDefault("request_timeout", 30*time.Second)
+	v.SetDefault("immich_timeout", 30*time.Second)
 
 	// Logging defaults
 	v.SetDefault("log_level", "info")
@@ -115,6 +117,72 @@ func setDefaults(v *viper.Viper) {
 	// Metrics defaults
 	v.SetDefault("enable_metrics", false)
 	v.SetDefault("metrics_port", ":9090")
+}
+
+func applyDerivedDefaults(cfg *Config, v *viper.Viper) {
+	if cfg.ListenAddr == "" {
+		cfg.ListenAddr = v.GetString("listen_addr")
+		if cfg.ListenAddr == "" {
+			cfg.ListenAddr = ":8080"
+		}
+	}
+
+	if cfg.CacheTTL <= 0 {
+		cfg.CacheTTL = v.GetDuration("cache_ttl")
+		if cfg.CacheTTL <= 0 {
+			cfg.CacheTTL = 5 * time.Minute
+		}
+	}
+
+	if cfg.CacheMaxSize <= 0 {
+		cfg.CacheMaxSize = v.GetInt("cache_max_size")
+		if cfg.CacheMaxSize <= 0 {
+			cfg.CacheMaxSize = 1000
+		}
+	}
+
+	if cfg.RateLimitPerSecond <= 0 {
+		cfg.RateLimitPerSecond = v.GetInt("rate_limit_per_second")
+		if cfg.RateLimitPerSecond <= 0 {
+			cfg.RateLimitPerSecond = 100
+		}
+	}
+
+	if cfg.RateLimitBurst <= 0 {
+		cfg.RateLimitBurst = v.GetInt("rate_limit_burst")
+		if cfg.RateLimitBurst <= 0 {
+			cfg.RateLimitBurst = 200
+		}
+	}
+
+	if cfg.RequestTimeout <= 0 {
+		cfg.RequestTimeout = v.GetDuration("request_timeout")
+		if cfg.RequestTimeout <= 0 {
+			cfg.RequestTimeout = 30 * time.Second
+		}
+	}
+
+	if cfg.ImmichTimeout <= 0 {
+		cfg.ImmichTimeout = v.GetDuration("immich_timeout")
+		if cfg.ImmichTimeout <= 0 {
+			cfg.ImmichTimeout = 30 * time.Second
+		}
+	}
+
+	if cfg.MetricsPort == "" {
+		cfg.MetricsPort = v.GetString("metrics_port")
+		if cfg.MetricsPort == "" {
+			cfg.MetricsPort = ":9090"
+		}
+	}
+
+	// Ensure auth mode is set even if empty string was provided
+	if cfg.AuthMode == "" {
+		cfg.AuthMode = v.GetString("auth_mode")
+		if cfg.AuthMode == "" {
+			cfg.AuthMode = "none"
+		}
+	}
 }
 
 // Validate validates the configuration
@@ -129,10 +197,10 @@ func (c *Config) Validate() error {
 
 	// Validate auth mode
 	validAuthModes := map[string]bool{
-		"none": true,
+		"none":    true,
 		"api_key": true,
-		"oauth": true,
-		"both": true,
+		"oauth":   true,
+		"both":    true,
 	}
 	if !validAuthModes[c.AuthMode] {
 		return fmt.Errorf("invalid auth_mode: %s", c.AuthMode)
@@ -147,7 +215,6 @@ func (c *Config) Validate() error {
 	if (c.AuthMode == "oauth" || c.AuthMode == "both") && c.OAuth == nil {
 		return fmt.Errorf("oauth configuration required when auth_mode is %s", c.AuthMode)
 	}
-
 
 	return nil
 }

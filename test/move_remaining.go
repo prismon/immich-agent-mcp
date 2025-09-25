@@ -1,3 +1,5 @@
+//go:build ignore
+
 package main
 
 import (
@@ -41,8 +43,8 @@ func main() {
 		"albumName":   "Bad Thumbnails",
 		"dryRun":      false,
 		"createAlbum": false, // Album already exists
-		"maxImages":   0, // 0 means unlimited - process all
-		"startPage":   1, // Start from beginning
+		"maxImages":   0,     // 0 means unlimited - process all
+		"startPage":   1,     // Start from beginning
 	})
 
 	if moveResult == nil {

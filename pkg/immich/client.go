@@ -29,10 +29,10 @@ func NewClient(baseURL, apiKey string, timeout time.Duration) *Client {
 		httpClient: &http.Client{
 			Timeout: timeout,
 			Transport: &http.Transport{
-				MaxIdleConns:        10,
-				MaxConnsPerHost:     10,
-				IdleConnTimeout:     90 * time.Second,
-				DisableCompression:  false,
+				MaxIdleConns:       10,
+				MaxConnsPerHost:    10,
+				IdleConnTimeout:    90 * time.Second,
+				DisableCompression: false,
 			},
 		},
 		rateLimiter: rate.NewLimiter(rate.Every(10*time.Millisecond), 100), // 100 req/sec
@@ -195,16 +195,16 @@ func (c *Client) GetAllAssets(ctx context.Context, page, size int) (*AssetPage, 
 
 	// Create search request for all assets
 	body := map[string]interface{}{
-		"page":    offset / size + 1, // Convert to 1-based page
-		"size":    size,
+		"page":     offset/size + 1, // Convert to 1-based page
+		"size":     size,
 		"withExif": true, // Include EXIF data for dimensions
 	}
 
 	var searchResult struct {
 		Assets struct {
-			Total  int     `json:"total"`
-			Count  int     `json:"count"`
-			Items  []Asset `json:"items"`
+			Total    int     `json:"total"`
+			Count    int     `json:"count"`
+			Items    []Asset `json:"items"`
 			NextPage *string `json:"nextPage"`
 		} `json:"assets"`
 	}
@@ -347,40 +347,40 @@ func (c *Client) RemoveAssetsFromAlbum(ctx context.Context, albumID string, asse
 
 // SmartSearchParams contains all parameters for smart search
 type SmartSearchParams struct {
-	Query         string    `json:"query,omitempty"`
-	AlbumIds      []string  `json:"albumIds,omitempty"`
-	PersonIds     []string  `json:"personIds,omitempty"`
-	TagIds        []string  `json:"tagIds,omitempty"`
-	City          string    `json:"city,omitempty"`
-	Country       string    `json:"country,omitempty"`
-	State         string    `json:"state,omitempty"`
-	Make          string    `json:"make,omitempty"`
-	Model         string    `json:"model,omitempty"`
-	LensModel     string    `json:"lensModel,omitempty"`
-	DeviceId      string    `json:"deviceId,omitempty"`
-	LibraryId     string    `json:"libraryId,omitempty"`
-	QueryAssetId  string    `json:"queryAssetId,omitempty"`
-	Type          string    `json:"type,omitempty"` // IMAGE, VIDEO, AUDIO, OTHER
-	Visibility    string    `json:"visibility,omitempty"` // archive, timeline, hidden, locked
-	CreatedAfter  string    `json:"createdAfter,omitempty"`
-	CreatedBefore string    `json:"createdBefore,omitempty"`
-	TakenAfter    string    `json:"takenAfter,omitempty"`
-	TakenBefore   string    `json:"takenBefore,omitempty"`
-	UpdatedAfter  string    `json:"updatedAfter,omitempty"`
-	UpdatedBefore string    `json:"updatedBefore,omitempty"`
-	TrashedAfter  string    `json:"trashedAfter,omitempty"`
-	TrashedBefore string    `json:"trashedBefore,omitempty"`
-	IsFavorite    *bool     `json:"isFavorite,omitempty"`
-	IsEncoded     *bool     `json:"isEncoded,omitempty"`
-	IsMotion      *bool     `json:"isMotion,omitempty"`
-	IsOffline     *bool     `json:"isOffline,omitempty"`
-	IsNotInAlbum  *bool     `json:"isNotInAlbum,omitempty"`
-	WithDeleted   *bool     `json:"withDeleted,omitempty"`
-	WithExif      *bool     `json:"withExif,omitempty"`
-	Rating        *int      `json:"rating,omitempty"` // -1 to 5
-	Page          int       `json:"page,omitempty"`
-	Size          int       `json:"size,omitempty"` // 1 to 1000
-	Language      string    `json:"language,omitempty"`
+	Query         string   `json:"query,omitempty"`
+	AlbumIds      []string `json:"albumIds,omitempty"`
+	PersonIds     []string `json:"personIds,omitempty"`
+	TagIds        []string `json:"tagIds,omitempty"`
+	City          string   `json:"city,omitempty"`
+	Country       string   `json:"country,omitempty"`
+	State         string   `json:"state,omitempty"`
+	Make          string   `json:"make,omitempty"`
+	Model         string   `json:"model,omitempty"`
+	LensModel     string   `json:"lensModel,omitempty"`
+	DeviceId      string   `json:"deviceId,omitempty"`
+	LibraryId     string   `json:"libraryId,omitempty"`
+	QueryAssetId  string   `json:"queryAssetId,omitempty"`
+	Type          string   `json:"type,omitempty"`       // IMAGE, VIDEO, AUDIO, OTHER
+	Visibility    string   `json:"visibility,omitempty"` // archive, timeline, hidden, locked
+	CreatedAfter  string   `json:"createdAfter,omitempty"`
+	CreatedBefore string   `json:"createdBefore,omitempty"`
+	TakenAfter    string   `json:"takenAfter,omitempty"`
+	TakenBefore   string   `json:"takenBefore,omitempty"`
+	UpdatedAfter  string   `json:"updatedAfter,omitempty"`
+	UpdatedBefore string   `json:"updatedBefore,omitempty"`
+	TrashedAfter  string   `json:"trashedAfter,omitempty"`
+	TrashedBefore string   `json:"trashedBefore,omitempty"`
+	IsFavorite    *bool    `json:"isFavorite,omitempty"`
+	IsEncoded     *bool    `json:"isEncoded,omitempty"`
+	IsMotion      *bool    `json:"isMotion,omitempty"`
+	IsOffline     *bool    `json:"isOffline,omitempty"`
+	IsNotInAlbum  *bool    `json:"isNotInAlbum,omitempty"`
+	WithDeleted   *bool    `json:"withDeleted,omitempty"`
+	WithExif      *bool    `json:"withExif,omitempty"`
+	Rating        *int     `json:"rating,omitempty"` // -1 to 5
+	Page          int      `json:"page,omitempty"`
+	Size          int      `json:"size,omitempty"` // 1 to 1000
+	Language      string   `json:"language,omitempty"`
 }
 
 // SmartSearch performs AI-powered search (simple version for backwards compatibility)
@@ -516,10 +516,10 @@ func (c *Client) SmartSearchAdvanced(ctx context.Context, params SmartSearchPara
 
 		var searchResult struct {
 			Assets struct {
-				Total     int     `json:"total"`
-				Count     int     `json:"count"`
-				Items     []Asset `json:"items"`
-				NextPage  interface{} `json:"nextPage"`
+				Total    int         `json:"total"`
+				Count    int         `json:"count"`
+				Items    []Asset     `json:"items"`
+				NextPage interface{} `json:"nextPage"`
 			} `json:"assets"`
 		}
 
@@ -707,6 +707,10 @@ func (c *Client) RepairAssets(ctx context.Context, assetIDs []string, actions Re
 
 // ExportAssets exports assets for download
 func (c *Client) ExportAssets(ctx context.Context, assetIDs []string, format string) (*ExportResult, error) {
+	if len(assetIDs) == 0 {
+		return nil, fmt.Errorf("no asset IDs provided")
+	}
+
 	// Generate download URLs
 	downloadURLs := make([]string, 0, len(assetIDs))
 	for _, id := range assetIDs {
@@ -714,10 +718,15 @@ func (c *Client) ExportAssets(ctx context.Context, assetIDs []string, format str
 		downloadURLs = append(downloadURLs, url)
 	}
 
+	downloadURL := ""
+	if len(downloadURLs) > 0 {
+		downloadURL = downloadURLs[0]
+	}
+
 	result := &ExportResult{
 		Success:     true,
 		ExportID:    fmt.Sprintf("export-%d", time.Now().Unix()),
-		DownloadURL: downloadURLs[0], // First URL for single file
+		DownloadURL: downloadURL,
 		ExpiresAt:   time.Now().Add(24 * time.Hour).Format(time.RFC3339),
 		FileCount:   len(assetIDs),
 		Format:      format,
