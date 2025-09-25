@@ -10,6 +10,8 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"golang.org/x/time/rate"
 )
 
@@ -761,13 +763,31 @@ func (c *Client) request(ctx context.Context, method, url string, body interface
 
 	// Prepare body
 	var bodyReader io.Reader
+	var jsonBody []byte
 	if body != nil {
-		jsonBody, err := json.Marshal(body)
+		var err error
+		jsonBody, err = json.Marshal(body)
 		if err != nil {
 			return fmt.Errorf("failed to marshal body: %w", err)
 		}
 		bodyReader = bytes.NewReader(jsonBody)
 	}
+
+	requestLogger := log.Info().
+		Str("method", method).
+		Str("url", url)
+
+	var prettyPayload string
+	if len(jsonBody) > 0 && zerolog.GlobalLevel() <= zerolog.DebugLevel {
+		var buf bytes.Buffer
+		if err := json.Indent(&buf, jsonBody, "", "  "); err != nil {
+			buf.Write(jsonBody)
+		}
+		prettyPayload = buf.String()
+		requestLogger = requestLogger.Str("payload", prettyPayload)
+	}
+
+	requestLogger.Msg("Calling Immich API")
 
 	// Create request
 	req, err := http.NewRequestWithContext(ctx, method, url, bodyReader)
@@ -787,6 +807,15 @@ func (c *Client) request(ctx context.Context, method, url string, body interface
 		return fmt.Errorf("request failed: %w", err)
 	}
 	defer resp.Body.Close()
+
+	responseLogger := log.Info().
+		Str("method", method).
+		Str("url", url).
+		Int("status", resp.StatusCode)
+	if prettyPayload != "" {
+		responseLogger = responseLogger.Str("payload", prettyPayload)
+	}
+	responseLogger.Msg("Received Immich API response")
 
 	// Check status
 	if resp.StatusCode >= 400 {
