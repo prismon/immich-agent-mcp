@@ -1,3 +1,5 @@
+//go:build ignore
+
 package main
 
 import (
@@ -61,7 +63,7 @@ func main() {
 	moveResult := callTool(ctx, mcpServer, "moveBrokenThumbnailsToAlbum", map[string]interface{}{
 		"albumName":   "Bad Thumbnails",
 		"dryRun":      false,
-		"createAlbum": false, // Album already exists
+		"createAlbum": false,       // Album already exists
 		"maxImages":   totalBroken, // Move all found images
 	})
 
