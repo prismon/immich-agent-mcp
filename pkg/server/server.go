@@ -18,17 +18,33 @@ import (
 
 // Server represents the MCP Immich server
 type Server struct {
-	config      *config.Config
-	mcpServer   *server.MCPServer
+	config         *config.Config
+	mcpServer      *server.MCPServer
 	streamableHTTP *server.StreamableHTTPServer
-	immich      *immich.Client
-	cache       *cache.Cache
-	rateLimiter *rate.Limiter
-	authProvider auth.Provider
+	immich         *immich.Client
+	cache          *cache.Cache
+	rateLimiter    *rate.Limiter
+	authProvider   auth.Provider
 }
 
 // New creates a new MCP Immich server
 func New(cfg *config.Config) (*Server, error) {
+	if cfg.CacheTTL <= 0 {
+		cfg.CacheTTL = 5 * time.Minute
+	}
+	if cfg.RateLimitPerSecond <= 0 {
+		cfg.RateLimitPerSecond = 100
+	}
+	if cfg.RateLimitBurst <= 0 {
+		cfg.RateLimitBurst = 200
+	}
+	if cfg.RequestTimeout <= 0 {
+		cfg.RequestTimeout = 30 * time.Second
+	}
+	if cfg.ImmichTimeout <= 0 {
+		cfg.ImmichTimeout = 30 * time.Second
+	}
+
 	// Create Immich client
 	immichClient := immich.NewClient(cfg.ImmichURL, cfg.ImmichAPIKey, cfg.ImmichTimeout)
 
@@ -57,13 +73,13 @@ func New(cfg *config.Config) (*Server, error) {
 	streamableHTTP := server.NewStreamableHTTPServer(mcpServer)
 
 	s := &Server{
-		config:       cfg,
-		mcpServer:    mcpServer,
+		config:         cfg,
+		mcpServer:      mcpServer,
 		streamableHTTP: streamableHTTP,
-		immich:       immichClient,
-		cache:        cacheStore,
-		rateLimiter:  rateLimiter,
-		authProvider: authProvider,
+		immich:         immichClient,
+		cache:          cacheStore,
+		rateLimiter:    rateLimiter,
+		authProvider:   authProvider,
 	}
 
 	return s, nil
@@ -73,7 +89,6 @@ func New(cfg *config.Config) (*Server, error) {
 func (s *Server) Start(ctx context.Context) error {
 	return s.startHTTP(ctx)
 }
-
 
 // startHTTP starts the server with StreamableHTTP transport
 func (s *Server) startHTTP(ctx context.Context) error {
@@ -125,7 +140,6 @@ func (s *Server) startHTTP(ctx context.Context) error {
 	}
 }
 
-
 // handleHealth handles health check requests
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
@@ -150,8 +164,6 @@ func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(`{"status":"ready"}`))
 }
-
-
 
 // createAuthProvider creates the appropriate auth provider based on config
 func createAuthProvider(cfg *config.Config) (auth.Provider, error) {

@@ -1,3 +1,5 @@
+//go:build ignore
+
 package main
 
 import (
@@ -120,7 +122,7 @@ func main() {
 
 	fmt.Printf("Large Movies album now contains: %d assets (was %d)\n", finalLargeMovies, initialCount)
 	fmt.Printf("Personal Videos album now contains: %d assets\n", personalVideos)
-	fmt.Printf("Net change in Large Movies: %d assets removed\n", initialCount - finalLargeMovies)
+	fmt.Printf("Net change in Large Movies: %d assets removed\n", initialCount-finalLargeMovies)
 }
 
 func getAlbumCount(cfg *config.Config, albumName string) int {

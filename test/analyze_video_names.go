@@ -1,3 +1,5 @@
+//go:build ignore
+
 package main
 
 import (
@@ -56,22 +58,22 @@ func main() {
 
 	// Categorize videos
 	personalPatterns := []string{
-		`^\d{8}_`,        // Date format: 20160525_
+		`^\d{8}_`,            // Date format: 20160525_
 		`^\d{4}-\d{2}-\d{2}`, // Date format: 2024-01-15
-		`^IMG_`,          // iPhone/camera format
-		`^VID_`,          // Video format
-		`^MOV_`,          // Movie format
-		`^DSC`,           // Digital camera
-		`^DSCN`,          // Nikon
-		`^GOPR`,          // GoPro
-		`^DJI_`,          // DJI drone
-		`^PXL_`,          // Pixel phone
-		`^FILE`,          // Generic file
-		`\.MOV$`,         // MOV extension (personal videos)
-		`\.mov$`,         // mov extension
-		`^MVI_`,          // Canon video
-		`^100`,           // Some cameras
-		`^P\d{7}`,        // Some phone formats
+		`^IMG_`,              // iPhone/camera format
+		`^VID_`,              // Video format
+		`^MOV_`,              // Movie format
+		`^DSC`,               // Digital camera
+		`^DSCN`,              // Nikon
+		`^GOPR`,              // GoPro
+		`^DJI_`,              // DJI drone
+		`^PXL_`,              // Pixel phone
+		`^FILE`,              // Generic file
+		`\.MOV$`,             // MOV extension (personal videos)
+		`\.mov$`,             // mov extension
+		`^MVI_`,              // Canon video
+		`^100`,               // Some cameras
+		`^P\d{7}`,            // Some phone formats
 	}
 
 	moviePatterns := []string{

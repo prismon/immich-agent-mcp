@@ -1,3 +1,5 @@
+//go:build ignore
+
 package main
 
 import (
@@ -76,7 +78,9 @@ func main() {
 				if samples, ok := res["sampleResults"].([]interface{}); ok && len(samples) > 0 {
 					fmt.Println("\nSample results:")
 					for i, sample := range samples {
-						if i >= 5 { break } // Show first 5
+						if i >= 5 {
+							break
+						} // Show first 5
 						if s, ok := sample.(map[string]interface{}); ok {
 							fmt.Printf("  - %s (%s)\n", s["fileName"], s["type"])
 						}
