@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -16,7 +17,12 @@ import (
 )
 
 // RegisterTools registers all tools with the MCP server
-func RegisterTools(s *server.MCPServer, immichClient *immich.Client, cacheStore *cache.Cache) {
+func RegisterTools(s *server.MCPServer, immichClient *immich.Client, cacheStore *cache.Cache) error {
+	smartAlbumStore, err := NewSmartAlbumStore("")
+	if err != nil {
+		return err
+	}
+
 	// Query tools
 	registerQueryPhotos(s, immichClient, cacheStore)
 	registerQueryPhotosWithBuckets(s, immichClient, cacheStore)
@@ -31,6 +37,8 @@ func RegisterTools(s *server.MCPServer, immichClient *immich.Client, cacheStore 
 	registerGetAllAlbums(s, immichClient, cacheStore)
 	registerCreateAlbum(s, immichClient)
 	registerMoveToAlbum(s, immichClient)
+	registerDefineSmartAlbum(s, immichClient, smartAlbumStore)
+	registerRefreshSmartAlbum(s, immichClient, smartAlbumStore)
 
 	// Library tools
 	registerListLibraries(s, immichClient, cacheStore)
@@ -52,6 +60,8 @@ func RegisterTools(s *server.MCPServer, immichClient *immich.Client, cacheStore 
 	registerAnalyzePhotos(s, immichClient)
 	registerExportPhotos(s, immichClient)
 	registerGetAllAssets(s, immichClient, cacheStore)
+
+	return nil
 }
 
 // queryPhotos tool
@@ -137,15 +147,15 @@ func registerQueryPhotosWithBuckets(s *server.MCPServer, immichClient *immich.Cl
 		InputSchema: mcp.ToolInputSchema{
 			Type: "object",
 			Properties: map[string]interface{}{
-				"bucketSize":  map[string]interface{}{"type": "string", "enum": []string{"day", "month", "year"}},
-				"startDate":   map[string]interface{}{"type": "string", "format": "date-time"},
-				"endDate":     map[string]interface{}{"type": "string", "format": "date-time"},
-				"albumId":     map[string]interface{}{"type": "string"},
-				"personId":    map[string]interface{}{"type": "string"},
-				"isArchived":  map[string]interface{}{"type": "boolean"},
-				"isFavorite":  map[string]interface{}{"type": "boolean"},
-				"withAssets":  map[string]interface{}{"type": "boolean"},
-				"maxBuckets":  map[string]interface{}{"type": "integer"},
+				"bucketSize": map[string]interface{}{"type": "string", "enum": []string{"day", "month", "year"}},
+				"startDate":  map[string]interface{}{"type": "string", "format": "date-time"},
+				"endDate":    map[string]interface{}{"type": "string", "format": "date-time"},
+				"albumId":    map[string]interface{}{"type": "string"},
+				"personId":   map[string]interface{}{"type": "string"},
+				"isArchived": map[string]interface{}{"type": "boolean"},
+				"isFavorite": map[string]interface{}{"type": "boolean"},
+				"withAssets": map[string]interface{}{"type": "boolean"},
+				"maxBuckets": map[string]interface{}{"type": "integer"},
 			},
 		},
 	}
@@ -456,6 +466,490 @@ func registerMoveToAlbum(s *server.MCPServer, immichClient *immich.Client) {
 	}
 
 	s.AddTool(tool, handler)
+}
+
+func registerDefineSmartAlbum(s *server.MCPServer, immichClient *immich.Client, store *SmartAlbumStore) {
+	tool := mcp.Tool{
+		Name:        "defineSmartAlbum",
+		Description: "Create or update a smart album definition backed by a stored smart search query",
+		InputSchema: mcp.ToolInputSchema{
+			Type: "object",
+			Properties: map[string]interface{}{
+				"smartAlbumId": map[string]interface{}{
+					"type":        "string",
+					"description": "Identifier of an existing smart album definition to update",
+				},
+				"smartAlbumName": map[string]interface{}{
+					"type":        "string",
+					"description": "Name for this smart album definition (used when referencing by name)",
+				},
+				"description": map[string]interface{}{
+					"type":        "string",
+					"description": "Optional description for the smart album definition",
+				},
+				"albumId": map[string]interface{}{
+					"type":        "string",
+					"description": "Existing Immich album ID that should receive assets",
+				},
+				"albumName": map[string]interface{}{
+					"type":        "string",
+					"description": "Album name to target or create if albumId is not provided",
+				},
+				"albumDescription": map[string]interface{}{
+					"type":        "string",
+					"description": "Description to apply if a new album is created",
+				},
+				"createAlbum": map[string]interface{}{
+					"type":        "boolean",
+					"description": "Create the album when it does not already exist",
+					"default":     true,
+				},
+				"smartQuery": map[string]interface{}{
+					"type":        "string",
+					"description": "Smart search free-form query text",
+				},
+				"searchParams": map[string]interface{}{
+					"type":        "object",
+					"description": "Advanced smart search parameters mirroring Immich's /api/search/smart payload",
+				},
+				"maxResults": map[string]interface{}{
+					"type":        "integer",
+					"description": "Maximum number of results to fetch when refreshing (1-5000)",
+					"minimum":     1,
+					"maximum":     5000,
+					"default":     500,
+				},
+			},
+		},
+	}
+
+	handler := func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		var params struct {
+			SmartAlbumID     string                 `json:"smartAlbumId"`
+			SmartAlbumName   string                 `json:"smartAlbumName"`
+			Description      string                 `json:"description"`
+			AlbumID          string                 `json:"albumId"`
+			AlbumName        string                 `json:"albumName"`
+			AlbumDescription string                 `json:"albumDescription"`
+			CreateAlbum      bool                   `json:"createAlbum"`
+			SmartQuery       string                 `json:"smartQuery"`
+			SearchParams     map[string]interface{} `json:"searchParams"`
+			MaxResults       int                    `json:"maxResults"`
+		}
+
+		params.CreateAlbum = true
+
+		argBytes, ok := request.Params.Arguments.([]byte)
+		if !ok {
+			argBytes, _ = json.Marshal(request.Params.Arguments)
+		}
+		if err := json.Unmarshal(argBytes, &params); err != nil {
+			return nil, fmt.Errorf("invalid parameters: %w", err)
+		}
+
+		var existing SmartAlbumDefinition
+		var exists bool
+		if params.SmartAlbumID != "" {
+			existing, exists = store.GetByID(params.SmartAlbumID)
+			if !exists {
+				return nil, fmt.Errorf("smart album with id %s not found", params.SmartAlbumID)
+			}
+		} else {
+			existing, exists = store.GetByName(params.SmartAlbumName)
+		}
+
+		if params.SmartAlbumID == "" && params.SmartAlbumName == "" {
+			return nil, fmt.Errorf("either smartAlbumId or smartAlbumName must be provided")
+		}
+
+		smartAlbumName := params.SmartAlbumName
+		if smartAlbumName == "" {
+			smartAlbumName = existing.Name
+		}
+		if smartAlbumName == "" {
+			return nil, fmt.Errorf("smartAlbumName is required")
+		}
+
+		var searchParams immich.SmartSearchParams
+		providedParams := false
+		if len(params.SearchParams) > 0 {
+			payload, err := json.Marshal(params.SearchParams)
+			if err != nil {
+				return nil, fmt.Errorf("invalid searchParams: %w", err)
+			}
+			if err := json.Unmarshal(payload, &searchParams); err != nil {
+				return nil, fmt.Errorf("invalid searchParams: %w", err)
+			}
+			providedParams = true
+		}
+		if exists && !providedParams {
+			searchParams = existing.Query
+		}
+
+		if params.SmartQuery != "" {
+			searchParams.Query = params.SmartQuery
+		}
+
+		maxResults := params.MaxResults
+		if maxResults <= 0 {
+			if exists && existing.MaxResults > 0 {
+				maxResults = existing.MaxResults
+			} else {
+				maxResults = 500
+			}
+		}
+		if maxResults > 5000 {
+			maxResults = 5000
+		}
+		searchParams.Size = maxResults
+
+		if !exists && searchParams.Query == "" && !providedParams {
+			return nil, fmt.Errorf("either smartQuery or searchParams must be provided for new smart albums")
+		}
+
+		resolvedAlbumID := params.AlbumID
+		resolvedAlbumName := ""
+		resolvedAlbumDescription := ""
+		albumCreated := false
+
+		if resolvedAlbumID != "" {
+			album, err := findAlbumByID(ctx, immichClient, resolvedAlbumID)
+			if err != nil {
+				return nil, err
+			}
+			if album == nil {
+				return nil, fmt.Errorf("album with id %s not found", resolvedAlbumID)
+			}
+			resolvedAlbumName = album.AlbumName
+			resolvedAlbumDescription = album.Description
+		} else if params.AlbumName != "" {
+			album, err := findAlbumByName(ctx, immichClient, params.AlbumName)
+			if err != nil {
+				return nil, err
+			}
+			if album == nil {
+				if !params.CreateAlbum {
+					return nil, fmt.Errorf("album '%s' not found and createAlbum is false", params.AlbumName)
+				}
+
+				createdAlbum, err := immichClient.CreateAlbum(ctx, immich.CreateAlbumParams{
+					Name:        params.AlbumName,
+					Description: params.AlbumDescription,
+				})
+				if err != nil {
+					return nil, fmt.Errorf("failed to create album '%s': %w", params.AlbumName, err)
+				}
+
+				resolvedAlbumID = createdAlbum.ID
+				resolvedAlbumName = createdAlbum.AlbumName
+				resolvedAlbumDescription = createdAlbum.Description
+				albumCreated = true
+			} else {
+				resolvedAlbumID = album.ID
+				resolvedAlbumName = album.AlbumName
+				resolvedAlbumDescription = album.Description
+			}
+		} else if exists {
+			resolvedAlbumID = existing.AlbumID
+			resolvedAlbumName = existing.AlbumName
+			resolvedAlbumDescription = existing.AlbumDescription
+		}
+
+		if resolvedAlbumID == "" {
+			return nil, fmt.Errorf("an albumId or albumName must be provided to link the smart album")
+		}
+
+		def := SmartAlbumDefinition{
+			ID:               existing.ID,
+			Name:             smartAlbumName,
+			Description:      params.Description,
+			AlbumID:          resolvedAlbumID,
+			AlbumName:        resolvedAlbumName,
+			AlbumDescription: resolvedAlbumDescription,
+			Query:            searchParams,
+			MaxResults:       maxResults,
+			CreatedAt:        existing.CreatedAt,
+			LastRunAt:        existing.LastRunAt,
+			LastResultCount:  existing.LastResultCount,
+			LastAddedCount:   existing.LastAddedCount,
+			LastRunError:     existing.LastRunError,
+		}
+
+		if params.Description == "" && exists {
+			def.Description = existing.Description
+		}
+
+		saved, err := store.Save(def)
+		if err != nil {
+			return nil, fmt.Errorf("failed to persist smart album: %w", err)
+		}
+
+		return makeMCPResult(map[string]interface{}{
+			"success": true,
+			"smartAlbum": map[string]interface{}{
+				"id":          saved.ID,
+				"name":        saved.Name,
+				"description": saved.Description,
+				"albumId":     saved.AlbumID,
+				"albumName":   saved.AlbumName,
+				"maxResults":  saved.MaxResults,
+				"query":       saved.Query,
+				"createdAt":   saved.CreatedAt,
+				"updatedAt":   saved.UpdatedAt,
+			},
+			"albumCreated": albumCreated,
+		})
+	}
+
+	s.AddTool(tool, handler)
+}
+
+func registerRefreshSmartAlbum(s *server.MCPServer, immichClient *immich.Client, store *SmartAlbumStore) {
+	tool := mcp.Tool{
+		Name:        "refreshSmartAlbum",
+		Description: "Run a stored smart search definition and sync new results into its destination album",
+		InputSchema: mcp.ToolInputSchema{
+			Type: "object",
+			Properties: map[string]interface{}{
+				"smartAlbumId": map[string]interface{}{
+					"type":        "string",
+					"description": "Identifier of the smart album definition to refresh",
+				},
+				"smartAlbumName": map[string]interface{}{
+					"type":        "string",
+					"description": "Name of the smart album definition to refresh when id is not provided",
+				},
+				"dryRun": map[string]interface{}{
+					"type":        "boolean",
+					"description": "When true, compute differences without modifying the album",
+					"default":     false,
+				},
+				"maxResults": map[string]interface{}{
+					"type":        "integer",
+					"description": "Override the stored maximum number of search matches (1-5000)",
+					"minimum":     1,
+					"maximum":     5000,
+				},
+				"previewLimit": map[string]interface{}{
+					"type":        "integer",
+					"description": "Limit for the number of asset IDs returned as a preview",
+					"minimum":     1,
+					"maximum":     200,
+					"default":     25,
+				},
+			},
+		},
+	}
+
+	handler := func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		var params struct {
+			SmartAlbumID   string `json:"smartAlbumId"`
+			SmartAlbumName string `json:"smartAlbumName"`
+			DryRun         bool   `json:"dryRun"`
+			MaxResults     int    `json:"maxResults"`
+			PreviewLimit   int    `json:"previewLimit"`
+		}
+
+		params.PreviewLimit = 25
+
+		argBytes, ok := request.Params.Arguments.([]byte)
+		if !ok {
+			argBytes, _ = json.Marshal(request.Params.Arguments)
+		}
+		if err := json.Unmarshal(argBytes, &params); err != nil {
+			return nil, fmt.Errorf("invalid parameters: %w", err)
+		}
+
+		if params.SmartAlbumID == "" && params.SmartAlbumName == "" {
+			return nil, fmt.Errorf("either smartAlbumId or smartAlbumName must be provided")
+		}
+
+		if params.PreviewLimit < 0 {
+			params.PreviewLimit = 0
+		} else if params.PreviewLimit > 200 {
+			params.PreviewLimit = 200
+		}
+
+		def, err := resolveSmartAlbumDefinition(store, params.SmartAlbumID, params.SmartAlbumName)
+		if err != nil {
+			return nil, err
+		}
+
+		effectiveParams := def.Query
+		if params.MaxResults > 0 {
+			if params.MaxResults > 5000 {
+				params.MaxResults = 5000
+			}
+			effectiveParams.Size = params.MaxResults
+		} else if effectiveParams.Size == 0 {
+			if def.MaxResults > 0 {
+				effectiveParams.Size = def.MaxResults
+			} else {
+				effectiveParams.Size = 500
+			}
+		}
+
+		now := time.Now().UTC()
+
+		assets, searchErr := immichClient.SmartSearchAdvanced(ctx, effectiveParams)
+		if searchErr != nil {
+			def.LastRunAt = &now
+			def.LastRunError = searchErr.Error()
+			def.LastAddedCount = 0
+			def.LastResultCount = 0
+			if _, saveErr := store.Save(def); saveErr != nil {
+				return nil, fmt.Errorf("smart search failed: %v (additionally failed to persist state: %w)", searchErr, saveErr)
+			}
+			return nil, searchErr
+		}
+
+		existingAssets, err := immichClient.GetAlbumAssets(ctx, def.AlbumID)
+		if err != nil {
+			def.LastRunAt = &now
+			def.LastRunError = err.Error()
+			def.LastAddedCount = 0
+			def.LastResultCount = 0
+			if _, saveErr := store.Save(def); saveErr != nil {
+				return nil, fmt.Errorf("failed to read existing album assets: %v (additionally failed to persist state: %w)", err, saveErr)
+			}
+			return nil, fmt.Errorf("failed to read existing album assets: %w", err)
+		}
+
+		existingMap := make(map[string]struct{}, len(existingAssets))
+		for _, asset := range existingAssets {
+			existingMap[asset.ID] = struct{}{}
+		}
+
+		newIDs := make([]string, 0)
+		skipped := 0
+		for _, asset := range assets {
+			if _, found := existingMap[asset.ID]; found {
+				skipped++
+				continue
+			}
+			newIDs = append(newIDs, asset.ID)
+		}
+
+		result := map[string]interface{}{
+			"success":         true,
+			"smartAlbumId":    def.ID,
+			"smartAlbumName":  def.Name,
+			"albumId":         def.AlbumID,
+			"albumName":       def.AlbumName,
+			"dryRun":          params.DryRun,
+			"totalMatches":    len(assets),
+			"alreadyInAlbum":  skipped,
+			"potentialAdds":   len(newIDs),
+			"previewAssetIds": []string{},
+		}
+
+		previewIDs := newIDs
+		if params.PreviewLimit > 0 && len(previewIDs) > params.PreviewLimit {
+			previewIDs = previewIDs[:params.PreviewLimit]
+		}
+		if len(previewIDs) > 0 {
+			result["previewAssetIds"] = previewIDs
+		}
+
+		def.LastRunAt = &now
+		def.LastResultCount = len(assets)
+		def.LastRunError = ""
+
+		if params.DryRun || len(newIDs) == 0 {
+			def.LastAddedCount = 0
+			if _, err := store.Save(def); err != nil {
+				return nil, fmt.Errorf("failed to persist smart album refresh metadata: %w", err)
+			}
+			if params.DryRun {
+				result["note"] = "dry run - no assets added"
+			}
+			return makeMCPResult(result)
+		}
+
+		bulkResult, err := immichClient.AddAssetsToAlbum(ctx, def.AlbumID, newIDs)
+		if err != nil {
+			def.LastAddedCount = 0
+			def.LastRunError = err.Error()
+			if _, saveErr := store.Save(def); saveErr != nil {
+				return nil, fmt.Errorf("failed to add assets: %v (additionally failed to persist state: %w)", err, saveErr)
+			}
+			return nil, fmt.Errorf("failed to add assets to album: %w", err)
+		}
+
+		addedIDs := bulkResult.Success
+		failedIDs := bulkResult.Error
+
+		sort.Strings(addedIDs)
+		sort.Strings(failedIDs)
+
+		def.LastAddedCount = len(addedIDs)
+		if len(failedIDs) > 0 {
+			def.LastRunError = fmt.Sprintf("%d assets failed to add", len(failedIDs))
+		}
+
+		savedDef, err := store.Save(def)
+		if err != nil {
+			return nil, fmt.Errorf("failed to persist smart album refresh results: %w", err)
+		}
+
+		result["addedCount"] = len(addedIDs)
+		result["addedAssetIds"] = addedIDs
+		if len(failedIDs) > 0 {
+			result["failedAssetIds"] = failedIDs
+		}
+		result["smartAlbum"] = map[string]interface{}{
+			"id":              savedDef.ID,
+			"name":            savedDef.Name,
+			"lastRunAt":       savedDef.LastRunAt,
+			"lastResultCount": savedDef.LastResultCount,
+			"lastAddedCount":  savedDef.LastAddedCount,
+			"lastRunError":    savedDef.LastRunError,
+		}
+
+		return makeMCPResult(result)
+	}
+
+	s.AddTool(tool, handler)
+}
+
+func resolveSmartAlbumDefinition(store *SmartAlbumStore, id, name string) (SmartAlbumDefinition, error) {
+	if id != "" {
+		if def, ok := store.GetByID(id); ok {
+			return def, nil
+		}
+		return SmartAlbumDefinition{}, fmt.Errorf("smart album with id %s not found", id)
+	}
+
+	if def, ok := store.GetByName(name); ok {
+		return def, nil
+	}
+	return SmartAlbumDefinition{}, fmt.Errorf("smart album named '%s' not found", name)
+}
+
+func findAlbumByID(ctx context.Context, client *immich.Client, albumID string) (*immich.Album, error) {
+	albums, err := client.GetAllAlbumsWithInfo(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list albums: %w", err)
+	}
+	for _, album := range albums {
+		if album.ID == albumID {
+			return &album, nil
+		}
+	}
+	return nil, nil
+}
+
+func findAlbumByName(ctx context.Context, client *immich.Client, name string) (*immich.Album, error) {
+	albums, err := client.GetAllAlbumsWithInfo(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list albums: %w", err)
+	}
+	for _, album := range albums {
+		if strings.EqualFold(album.AlbumName, name) {
+			return &album, nil
+		}
+	}
+	return nil, nil
 }
 
 func registerListLibraries(s *server.MCPServer, immichClient *immich.Client, cacheStore *cache.Cache) {
@@ -778,12 +1272,12 @@ func registerMoveSmallImagesToAlbum(s *server.MCPServer, immichClient *immich.Cl
 
 	handler := func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		var params struct {
-			AlbumName     string `json:"albumName"`
-			MaxDimension  int    `json:"maxDimension"`
-			CreateAlbum   bool   `json:"createAlbum"`
-			DryRun        bool   `json:"dryRun"`
-			MaxImages     int    `json:"maxImages"`
-			StartPage     int    `json:"startPage"`
+			AlbumName    string `json:"albumName"`
+			MaxDimension int    `json:"maxDimension"`
+			CreateAlbum  bool   `json:"createAlbum"`
+			DryRun       bool   `json:"dryRun"`
+			MaxImages    int    `json:"maxImages"`
+			StartPage    int    `json:"startPage"`
 		}
 
 		// Set defaults
@@ -855,10 +1349,10 @@ func registerMoveSmallImagesToAlbum(s *server.MCPServer, immichClient *immich.Cl
 			for i := 0; i < sampleSize; i++ {
 				img := smallImages[i]
 				sampleData = append(sampleData, map[string]interface{}{
-					"id":         img.ID,
-					"name":       img.OriginalFileName,
-					"width":      img.ExifInfo.ExifImageWidth,
-					"height":     img.ExifInfo.ExifImageHeight,
+					"id":     img.ID,
+					"name":   img.OriginalFileName,
+					"width":  img.ExifInfo.ExifImageWidth,
+					"height": img.ExifInfo.ExifImageHeight,
 				})
 			}
 
@@ -975,12 +1469,12 @@ func registerMoveLargeMoviesToAlbum(s *server.MCPServer, immichClient *immich.Cl
 
 	handler := func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		var params struct {
-			AlbumName    string `json:"albumName"`
-			MinDuration  int    `json:"minDuration"`
-			CreateAlbum  bool   `json:"createAlbum"`
-			DryRun       bool   `json:"dryRun"`
-			MaxVideos    int    `json:"maxVideos"`
-			StartPage    int    `json:"startPage"`
+			AlbumName   string `json:"albumName"`
+			MinDuration int    `json:"minDuration"`
+			CreateAlbum bool   `json:"createAlbum"`
+			DryRun      bool   `json:"dryRun"`
+			MaxVideos   int    `json:"maxVideos"`
+			StartPage   int    `json:"startPage"`
 		}
 
 		// Set defaults
@@ -1192,19 +1686,19 @@ func registerMovePersonalVideosFromAlbum(s *server.MCPServer, immichClient *immi
 		params.SourceAlbum = "Large Movies"
 		params.TargetAlbum = "Personal Videos"
 		params.Patterns = []string{
-			"^\\d{8}_",     // Date format: 20160525_
+			"^\\d{8}_",              // Date format: 20160525_
 			"^\\d{4}-\\d{2}-\\d{2}", // Date format: 2024-01-15
-			"^IMG_",        // iPhone/camera format
-			"^VID_",        // Video format
-			"^MOV_",        // Movie format
-			"^DSC",         // Digital camera
-			"^DSCN",        // Nikon
-			"^GOPR",        // GoPro
-			"^DJI_",        // DJI drone
-			"^PXL_",        // Pixel phone
-			"^FILE",        // Generic file
-			"\\.MOV$",       // MOV extension (personal videos)
-			"\\.mov$",       // mov extension
+			"^IMG_",                 // iPhone/camera format
+			"^VID_",                 // Video format
+			"^MOV_",                 // Movie format
+			"^DSC",                  // Digital camera
+			"^DSCN",                 // Nikon
+			"^GOPR",                 // GoPro
+			"^DJI_",                 // DJI drone
+			"^PXL_",                 // Pixel phone
+			"^FILE",                 // Generic file
+			"\\.MOV$",               // MOV extension (personal videos)
+			"\\.mov$",               // mov extension
 		}
 		params.CreateAlbum = true
 		params.RemoveFromSource = true
@@ -1257,8 +1751,8 @@ func registerMovePersonalVideosFromAlbum(s *server.MCPServer, immichClient *immi
 		}
 
 		result := map[string]interface{}{
-			"sourceAlbum":        params.SourceAlbum,
-			"targetAlbum":        params.TargetAlbum,
+			"sourceAlbum":         params.SourceAlbum,
+			"targetAlbum":         params.TargetAlbum,
 			"totalVideosInSource": len(sourceAssets),
 			"personalVideosFound": len(personalVideos),
 		}
@@ -1476,10 +1970,10 @@ func registerDeleteAlbumContents(s *server.MCPServer, immichClient *immich.Clien
 		}
 
 		result := map[string]interface{}{
-			"albumID":         albumID,
-			"albumName":       albumName,
-			"totalAssets":     len(assets),
-			"assetsToDelete":  len(assetsToDelete),
+			"albumID":        albumID,
+			"albumName":      albumName,
+			"totalAssets":    len(assets),
+			"assetsToDelete": len(assetsToDelete),
 		}
 
 		if params.DryRun {
@@ -1618,10 +2112,10 @@ func registerMovePhotosBySearch(s *server.MCPServer, immichClient *immich.Client
 		}
 
 		result := map[string]interface{}{
-			"query":        params.Query,
-			"albumName":    params.AlbumName,
-			"foundAssets":  len(searchResults),
-			"maxResults":   params.MaxResults,
+			"query":       params.Query,
+			"albumName":   params.AlbumName,
+			"foundAssets": len(searchResults),
+			"maxResults":  params.MaxResults,
 		}
 
 		if len(searchResults) == 0 {

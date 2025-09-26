@@ -67,7 +67,9 @@ func New(cfg *config.Config) (*Server, error) {
 	)
 
 	// Register all tools
-	tools.RegisterTools(mcpServer, immichClient, cacheStore)
+	if err := tools.RegisterTools(mcpServer, immichClient, cacheStore); err != nil {
+		return nil, fmt.Errorf("failed to register tools: %w", err)
+	}
 
 	// Create StreamableHTTP server
 	streamableHTTP := server.NewStreamableHTTPServer(mcpServer)
