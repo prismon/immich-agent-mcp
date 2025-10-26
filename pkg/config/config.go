@@ -40,6 +40,12 @@ type Config struct {
 	// Metrics
 	EnableMetrics bool   `mapstructure:"enable_metrics"`
 	MetricsPort   string `mapstructure:"metrics_port"`
+
+	// Live Albums
+	EnableLiveAlbums      bool          `mapstructure:"enable_live_albums"`
+	LiveAlbumUpdateCron   string        `mapstructure:"live_album_update_cron"`   // Cron expression, default "0 * * * *" (hourly)
+	LiveAlbumSyncStrategy string        `mapstructure:"live_album_sync_strategy"` // "add-only" or "full-sync"
+	LiveAlbumMaxResults   int           `mapstructure:"live_album_max_results"`   // Max search results per update
 }
 
 // OAuthConfig holds OAuth configuration
@@ -117,6 +123,12 @@ func setDefaults(v *viper.Viper) {
 	// Metrics defaults
 	v.SetDefault("enable_metrics", false)
 	v.SetDefault("metrics_port", ":9090")
+
+	// Live Albums defaults
+	v.SetDefault("enable_live_albums", true)
+	v.SetDefault("live_album_update_cron", "0 * * * *") // Every hour
+	v.SetDefault("live_album_sync_strategy", "add-only")
+	v.SetDefault("live_album_max_results", 5000)
 }
 
 func applyDerivedDefaults(cfg *Config, v *viper.Viper) {
@@ -183,6 +195,28 @@ func applyDerivedDefaults(cfg *Config, v *viper.Viper) {
 			cfg.AuthMode = "none"
 		}
 	}
+
+	// Live Albums defaults
+	if cfg.LiveAlbumUpdateCron == "" {
+		cfg.LiveAlbumUpdateCron = v.GetString("live_album_update_cron")
+		if cfg.LiveAlbumUpdateCron == "" {
+			cfg.LiveAlbumUpdateCron = "0 * * * *"
+		}
+	}
+
+	if cfg.LiveAlbumSyncStrategy == "" {
+		cfg.LiveAlbumSyncStrategy = v.GetString("live_album_sync_strategy")
+		if cfg.LiveAlbumSyncStrategy == "" {
+			cfg.LiveAlbumSyncStrategy = "add-only"
+		}
+	}
+
+	if cfg.LiveAlbumMaxResults <= 0 {
+		cfg.LiveAlbumMaxResults = v.GetInt("live_album_max_results")
+		if cfg.LiveAlbumMaxResults <= 0 {
+			cfg.LiveAlbumMaxResults = 5000
+		}
+	}
 }
 
 // Validate validates the configuration
@@ -214,6 +248,15 @@ func (c *Config) Validate() error {
 	// If auth mode requires OAuth, ensure config exists
 	if (c.AuthMode == "oauth" || c.AuthMode == "both") && c.OAuth == nil {
 		return fmt.Errorf("oauth configuration required when auth_mode is %s", c.AuthMode)
+	}
+
+	// Validate live album sync strategy
+	validSyncStrategies := map[string]bool{
+		"add-only":  true,
+		"full-sync": true,
+	}
+	if c.EnableLiveAlbums && !validSyncStrategies[c.LiveAlbumSyncStrategy] {
+		return fmt.Errorf("invalid live_album_sync_strategy: %s (must be 'add-only' or 'full-sync')", c.LiveAlbumSyncStrategy)
 	}
 
 	return nil

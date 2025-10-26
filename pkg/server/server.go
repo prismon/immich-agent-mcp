@@ -8,11 +8,12 @@ import (
 
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/patrickmn/go-cache"
-	"github.com/rs/zerolog/log"
 	"github.com/yourusername/mcp-immich/pkg/auth"
 	"github.com/yourusername/mcp-immich/pkg/config"
 	"github.com/yourusername/mcp-immich/pkg/immich"
+	"github.com/yourusername/mcp-immich/pkg/livealbums"
 	"github.com/yourusername/mcp-immich/pkg/tools"
+	"github.com/rs/zerolog/log"
 	"golang.org/x/time/rate"
 )
 
@@ -25,6 +26,7 @@ type Server struct {
 	cache          *cache.Cache
 	rateLimiter    *rate.Limiter
 	authProvider   auth.Provider
+	liveScheduler  *livealbums.Scheduler
 }
 
 // New creates a new MCP Immich server
@@ -67,10 +69,13 @@ func New(cfg *config.Config) (*Server, error) {
 	)
 
 	// Register all tools
-	tools.RegisterTools(mcpServer, immichClient, cacheStore)
+	tools.RegisterTools(mcpServer, cfg, immichClient, cacheStore)
 
 	// Create StreamableHTTP server
 	streamableHTTP := server.NewStreamableHTTPServer(mcpServer)
+
+	// Create live album scheduler
+	liveScheduler := livealbums.NewScheduler(cfg, immichClient)
 
 	s := &Server{
 		config:         cfg,
@@ -80,6 +85,7 @@ func New(cfg *config.Config) (*Server, error) {
 		cache:          cacheStore,
 		rateLimiter:    rateLimiter,
 		authProvider:   authProvider,
+		liveScheduler:  liveScheduler,
 	}
 
 	return s, nil
@@ -120,6 +126,11 @@ func (s *Server) startHTTP(ctx context.Context) error {
 
 	log.Info().Str("addr", s.config.ListenAddr).Msg("Starting StreamableHTTP server")
 
+	// Start live album scheduler
+	if err := s.liveScheduler.Start(); err != nil {
+		return fmt.Errorf("failed to start live album scheduler: %w", err)
+	}
+
 	// Start server in goroutine
 	errChan := make(chan error, 1)
 	go func() {
@@ -132,10 +143,16 @@ func (s *Server) startHTTP(ctx context.Context) error {
 	select {
 	case <-ctx.Done():
 		log.Info().Msg("Shutting down HTTP server")
+
+		// Stop live album scheduler
+		s.liveScheduler.Stop()
+
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		return httpServer.Shutdown(shutdownCtx)
 	case err := <-errChan:
+		// Stop live album scheduler on error
+		s.liveScheduler.Stop()
 		return err
 	}
 }

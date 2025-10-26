@@ -247,6 +247,26 @@ func (c *Client) CreateAlbum(ctx context.Context, params CreateAlbumParams) (*Al
 	return &album, nil
 }
 
+// UpdateAlbum updates an album's metadata (name and description)
+func (c *Client) UpdateAlbum(ctx context.Context, albumID string, name, description string) (*Album, error) {
+	endpoint := fmt.Sprintf("%s/api/albums/%s", c.baseURL, albumID)
+
+	body := map[string]interface{}{}
+	if name != "" {
+		body["albumName"] = name
+	}
+	if description != "" {
+		body["description"] = description
+	}
+
+	var album Album
+	if err := c.patch(ctx, endpoint, body, &album); err != nil {
+		return nil, err
+	}
+
+	return &album, nil
+}
+
 // AddAssetsToAlbum adds assets to an album
 func (c *Client) AddAssetsToAlbum(ctx context.Context, albumID string, assetIDs []string) (*BulkIDResult, error) {
 	endpoint := fmt.Sprintf("%s/api/albums/%s/assets", c.baseURL, albumID)
@@ -735,6 +755,10 @@ func (c *Client) put(ctx context.Context, url string, body interface{}, result i
 
 func (c *Client) delete(ctx context.Context, url string, body interface{}) error {
 	return c.request(ctx, http.MethodDelete, url, body, nil)
+}
+
+func (c *Client) patch(ctx context.Context, url string, body interface{}, result interface{}) error {
+	return c.request(ctx, http.MethodPatch, url, body, result)
 }
 
 func (c *Client) request(ctx context.Context, method, url string, body interface{}, result interface{}) error {

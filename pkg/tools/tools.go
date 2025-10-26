@@ -12,11 +12,12 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/patrickmn/go-cache"
+	"github.com/yourusername/mcp-immich/pkg/config"
 	"github.com/yourusername/mcp-immich/pkg/immich"
 )
 
 // RegisterTools registers all tools with the MCP server
-func RegisterTools(s *server.MCPServer, immichClient *immich.Client, cacheStore *cache.Cache) {
+func RegisterTools(s *server.MCPServer, cfg *config.Config, immichClient *immich.Client, cacheStore *cache.Cache) {
 	// Query tools
 	registerQueryPhotos(s, immichClient, cacheStore)
 	registerQueryPhotosWithBuckets(s, immichClient, cacheStore)
@@ -31,6 +32,9 @@ func RegisterTools(s *server.MCPServer, immichClient *immich.Client, cacheStore 
 	registerGetAllAlbums(s, immichClient, cacheStore)
 	registerCreateAlbum(s, immichClient)
 	registerMoveToAlbum(s, immichClient)
+
+	// Live Album tools
+	RegisterLiveAlbumTools(s, cfg, immichClient)
 
 	// Library tools
 	registerListLibraries(s, immichClient, cacheStore)

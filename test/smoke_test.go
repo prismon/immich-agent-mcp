@@ -79,8 +79,16 @@ func setupTestServer(t *testing.T, cfg *TestConfig) *server.MCPServer {
 	// Create MCP server
 	mcpServer := server.NewMCPServer("test-server", "1.0.0")
 
+	// Create a minimal config for testing
+	appConfig := &config.Config{
+		EnableLiveAlbums:      true,
+		LiveAlbumUpdateCron:   "0 * * * *",
+		LiveAlbumSyncStrategy: "add-only",
+		LiveAlbumMaxResults:   5000,
+	}
+
 	// Register all tools
-	tools.RegisterTools(mcpServer, immichClient, cacheStore)
+	tools.RegisterTools(mcpServer, appConfig, immichClient, cacheStore)
 
 	return mcpServer
 }
