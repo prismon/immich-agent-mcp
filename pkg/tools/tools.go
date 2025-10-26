@@ -635,6 +635,13 @@ func registerMoveBrokenThumbnailsToAlbum(s *server.MCPServer, immichClient *immi
 		totalProcessed := 0
 
 		for params.MaxImages == 0 || len(brokenImages) < params.MaxImages {
+			// Check for context cancellation
+			select {
+			case <-ctx.Done():
+				return nil, fmt.Errorf("operation cancelled: %w", ctx.Err())
+			default:
+			}
+
 			assetPage, err := immichClient.GetAllAssets(ctx, page, pageSize)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get assets page %d: %w", page, err)
@@ -808,6 +815,13 @@ func registerMoveSmallImagesToAlbum(s *server.MCPServer, immichClient *immich.Cl
 		totalProcessed := 0
 
 		for params.MaxImages == 0 || len(smallImages) < params.MaxImages {
+			// Check for context cancellation
+			select {
+			case <-ctx.Done():
+				return nil, fmt.Errorf("operation cancelled: %w", ctx.Err())
+			default:
+			}
+
 			assetPage, err := immichClient.GetAllAssets(ctx, page, pageSize)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get assets page %d: %w", page, err)
@@ -1008,6 +1022,13 @@ func registerMoveLargeMoviesToAlbum(s *server.MCPServer, immichClient *immich.Cl
 		totalProcessed := 0
 
 		for params.MaxVideos == 0 || len(largeMovies) < params.MaxVideos {
+			// Check for context cancellation
+			select {
+			case <-ctx.Done():
+				return nil, fmt.Errorf("operation cancelled: %w", ctx.Err())
+			default:
+			}
+
 			assetPage, err := immichClient.GetAllAssets(ctx, page, pageSize)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get assets page %d: %w", page, err)
@@ -1512,6 +1533,17 @@ func registerDeleteAlbumContents(s *server.MCPServer, immichClient *immich.Clien
 		var deleteErrors []string
 
 		for i := 0; i < len(assetsToDelete); i += params.BatchSize {
+			// Check for context cancellation
+			select {
+			case <-ctx.Done():
+				result["deleted"] = deleted
+				result["failed"] = failed + (len(assetsToDelete) - i)
+				result["success"] = false
+				result["message"] = "Operation cancelled"
+				return makeMCPResult(result)
+			default:
+			}
+
 			end := i + params.BatchSize
 			if end > len(assetsToDelete) {
 				end = len(assetsToDelete)
