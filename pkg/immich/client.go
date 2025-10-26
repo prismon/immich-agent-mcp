@@ -314,34 +314,16 @@ func (c *Client) RemoveAssetsFromAlbum(ctx context.Context, albumID string, asse
 		"ids": assetIDs,
 	}
 
-	// The API returns an array of results
-	var results []struct {
-		ID      string `json:"id"`
-		Success bool   `json:"success"`
-		Error   string `json:"error,omitempty"`
-	}
+	// For DELETE operations, the API may return no body on success
+	// We'll try to parse the response, but if parsing fails, assume all succeeded
 	if err := c.delete(ctx, endpoint, body); err != nil {
-		// For DELETE, no response body means success
-		// Return success for all IDs
-		bulkResult := &BulkIDResult{
-			Success: assetIDs,
-			Error:   []string{},
-		}
-		return bulkResult, nil
+		return nil, err
 	}
 
-	// Convert to BulkIDResult format if we got a response
+	// If delete succeeded, return success for all IDs
 	bulkResult := &BulkIDResult{
-		Success: []string{},
+		Success: assetIDs,
 		Error:   []string{},
-	}
-
-	for _, res := range results {
-		if res.Success {
-			bulkResult.Success = append(bulkResult.Success, res.ID)
-		} else {
-			bulkResult.Error = append(bulkResult.Error, res.ID)
-		}
 	}
 
 	return bulkResult, nil

@@ -10,6 +10,14 @@ import (
 	"golang.org/x/oauth2"
 )
 
+// Context keys for authentication
+type contextKey int
+
+const (
+	contextKeyAPIKey contextKey = iota
+	contextKeyOAuthToken
+)
+
 // Provider defines the authentication interface
 type Provider interface {
 	Authenticate(r *http.Request) (context.Context, error)
@@ -64,7 +72,7 @@ func (p *APIKeyProvider) Authenticate(r *http.Request) (context.Context, error) 
 	}
 
 	// Add API key to context
-	ctx := context.WithValue(r.Context(), "api_key", apiKey)
+	ctx := context.WithValue(r.Context(), contextKeyAPIKey, apiKey)
 	return ctx, nil
 }
 
@@ -115,7 +123,7 @@ func (p *OAuthProvider) Authenticate(r *http.Request) (context.Context, error) {
 	}
 
 	// Add token to context
-	ctx := context.WithValue(r.Context(), "oauth_token", token)
+	ctx := context.WithValue(r.Context(), contextKeyOAuthToken, token)
 	return ctx, nil
 }
 
