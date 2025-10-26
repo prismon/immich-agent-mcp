@@ -43,7 +43,9 @@ func (s *Server) rateLimitMiddleware(next http.Handler) http.Handler {
 
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusTooManyRequests)
-			w.Write([]byte(`{"error":"rate_limit_exceeded"}`))
+			if _, err := w.Write([]byte(`{"error":"rate_limit_exceeded"}`)); err != nil {
+				log.Error().Err(err).Msg("Failed to write rate limit response")
+			}
 			return
 		}
 
@@ -70,7 +72,9 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusUnauthorized)
-			w.Write([]byte(`{"error":"unauthorized"}`))
+			if _, err := w.Write([]byte(`{"error":"unauthorized"}`)); err != nil {
+				log.Error().Err(err).Msg("Failed to write auth error response")
+			}
 			return
 		}
 

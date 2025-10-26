@@ -144,7 +144,9 @@ func (s *Server) startHTTP(ctx context.Context) error {
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`{"status":"healthy"}`))
+	if _, err := w.Write([]byte(`{"status":"healthy"}`)); err != nil {
+		log.Error().Err(err).Msg("Failed to write health response")
+	}
 }
 
 // handleReady handles readiness check requests
@@ -156,13 +158,17 @@ func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
 	if err := s.immich.Ping(ctx); err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusServiceUnavailable)
-		w.Write([]byte(`{"status":"not_ready","reason":"immich_unavailable"}`))
+		if _, err := w.Write([]byte(`{"status":"not_ready","reason":"immich_unavailable"}`)); err != nil {
+			log.Error().Err(err).Msg("Failed to write ready error response")
+		}
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`{"status":"ready"}`))
+	if _, err := w.Write([]byte(`{"status":"ready"}`)); err != nil {
+		log.Error().Err(err).Msg("Failed to write ready response")
+	}
 }
 
 // createAuthProvider creates the appropriate auth provider based on config
