@@ -21,6 +21,7 @@ GOFMT=gofmt
 PKG_DIR=./pkg/...
 CMD_DIR=./cmd/mcp-immich
 TEST_DIR=./test/...
+CONFIG_FILE?=config.yaml
 
 .PHONY: all build clean test coverage fmt vet lint docker help
 
@@ -155,11 +156,11 @@ docker-compose-down:
 
 ## run: Run the server locally
 run:
-	$(GOCMD) run $(CMD_DIR) -config config.yaml
+	$(GOCMD) run $(CMD_DIR) -config $(CONFIG_FILE)
 
 ## run-stdio: Run the server with stdio transport
 run-stdio:
-	$(GOCMD) run $(CMD_DIR) -stdio
+	$(GOCMD) run $(CMD_DIR) -config $(CONFIG_FILE) -stdio
 
 ## install: Install the binary
 install: build
