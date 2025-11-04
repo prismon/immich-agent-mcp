@@ -1,0 +1,4 @@
+# Ignore all user-specific configuration files in this directory.
+*
+!.gitignore
+!README.md
