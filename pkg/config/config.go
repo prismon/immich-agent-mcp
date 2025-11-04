@@ -10,7 +10,8 @@ import (
 // Config holds all application configuration
 type Config struct {
 	// Server settings
-	ListenAddr string `mapstructure:"listen_addr"`
+	ListenAddr    string `mapstructure:"listen_addr"`
+	TransportMode string `mapstructure:"transport_mode"` // "http" or "stdio"
 
 	// Immich connection
 	ImmichURL    string `mapstructure:"immich_url"`
@@ -93,6 +94,7 @@ func Load(configFile string) (*Config, error) {
 func setDefaults(v *viper.Viper) {
 	// Server defaults
 	v.SetDefault("listen_addr", ":8080")
+	v.SetDefault("transport_mode", "http")
 
 	// Auth defaults
 	v.SetDefault("auth_mode", "none")
@@ -124,6 +126,13 @@ func applyDerivedDefaults(cfg *Config, v *viper.Viper) {
 		cfg.ListenAddr = v.GetString("listen_addr")
 		if cfg.ListenAddr == "" {
 			cfg.ListenAddr = ":8080"
+		}
+	}
+
+	if cfg.TransportMode == "" {
+		cfg.TransportMode = v.GetString("transport_mode")
+		if cfg.TransportMode == "" {
+			cfg.TransportMode = "http"
 		}
 	}
 
@@ -204,6 +213,12 @@ func (c *Config) Validate() error {
 	}
 	if !validAuthModes[c.AuthMode] {
 		return fmt.Errorf("invalid auth_mode: %s", c.AuthMode)
+	}
+
+	switch c.TransportMode {
+	case "", "http", "stdio":
+	default:
+		return fmt.Errorf("invalid transport_mode: %s", c.TransportMode)
 	}
 
 	// If auth mode requires API keys, ensure they exist

@@ -14,10 +14,10 @@ import (
 
 func TestNewServer(t *testing.T) {
 	cfg := &config.Config{
-		ImmichURL:    "http://localhost:2283",
-		ImmichAPIKey: "test-key",
-		AuthMode:     "none",
-		CacheTTL:     5 * time.Minute,
+		ImmichURL:          "http://localhost:2283",
+		ImmichAPIKey:       "test-key",
+		AuthMode:           "none",
+		CacheTTL:           5 * time.Minute,
 		RateLimitPerSecond: 100,
 		RateLimitBurst:     200,
 	}
@@ -34,10 +34,10 @@ func TestNewServer(t *testing.T) {
 
 func TestServerHealthCheck(t *testing.T) {
 	cfg := &config.Config{
-		ImmichURL:    "http://localhost:2283",
-		ImmichAPIKey: "test-key",
-		AuthMode:     "none",
-		CacheTTL:     5 * time.Minute,
+		ImmichURL:          "http://localhost:2283",
+		ImmichAPIKey:       "test-key",
+		AuthMode:           "none",
+		CacheTTL:           5 * time.Minute,
 		RateLimitPerSecond: 100,
 		RateLimitBurst:     200,
 	}
@@ -83,11 +83,11 @@ func TestServerAuthModes(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := &config.Config{
-				ImmichURL:    "http://localhost:2283",
-				ImmichAPIKey: "test-key",
-				AuthMode:     tt.authMode,
-				APIKeys:      tt.apiKeys,
-				CacheTTL:     5 * time.Minute,
+				ImmichURL:          "http://localhost:2283",
+				ImmichAPIKey:       "test-key",
+				AuthMode:           tt.authMode,
+				APIKeys:            tt.apiKeys,
+				CacheTTL:           5 * time.Minute,
 				RateLimitPerSecond: 100,
 				RateLimitBurst:     200,
 			}
@@ -105,10 +105,10 @@ func TestServerAuthModes(t *testing.T) {
 
 func TestRateLimitMiddleware(t *testing.T) {
 	cfg := &config.Config{
-		ImmichURL:    "http://localhost:2283",
-		ImmichAPIKey: "test-key",
-		AuthMode:     "none",
-		CacheTTL:     5 * time.Minute,
+		ImmichURL:          "http://localhost:2283",
+		ImmichAPIKey:       "test-key",
+		AuthMode:           "none",
+		CacheTTL:           5 * time.Minute,
 		RateLimitPerSecond: 1, // Very low for testing
 		RateLimitBurst:     1,
 	}
@@ -144,14 +144,14 @@ func TestRateLimitMiddleware(t *testing.T) {
 
 func TestStartStopServer(t *testing.T) {
 	cfg := &config.Config{
-		ListenAddr:   ":0", // Random port
-		ImmichURL:    "http://localhost:2283",
-		ImmichAPIKey: "test-key",
-		AuthMode:     "none",
-		CacheTTL:     5 * time.Minute,
+		ListenAddr:         ":0", // Random port
+		ImmichURL:          "http://localhost:2283",
+		ImmichAPIKey:       "test-key",
+		AuthMode:           "none",
+		CacheTTL:           5 * time.Minute,
 		RateLimitPerSecond: 100,
 		RateLimitBurst:     200,
-		RequestTimeout: 30 * time.Second,
+		RequestTimeout:     30 * time.Second,
 	}
 
 	srv, err := New(cfg)
@@ -162,7 +162,7 @@ func TestStartStopServer(t *testing.T) {
 	// Start server in goroutine
 	errChan := make(chan error, 1)
 	go func() {
-		errChan <- srv.Start(ctx)
+		errChan <- srv.Start(ctx, "http")
 	}()
 
 	// Give server time to start

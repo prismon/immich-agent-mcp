@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/mark3labs/mcp-go/server"
@@ -21,6 +22,7 @@ type Server struct {
 	config         *config.Config
 	mcpServer      *server.MCPServer
 	streamableHTTP *server.StreamableHTTPServer
+	stdioServer    *server.StdioServer
 	immich         *immich.Client
 	cache          *cache.Cache
 	rateLimiter    *rate.Limiter
@@ -71,11 +73,13 @@ func New(cfg *config.Config) (*Server, error) {
 
 	// Create StreamableHTTP server
 	streamableHTTP := server.NewStreamableHTTPServer(mcpServer)
+	stdioServer := server.NewStdioServer(mcpServer)
 
 	s := &Server{
 		config:         cfg,
 		mcpServer:      mcpServer,
 		streamableHTTP: streamableHTTP,
+		stdioServer:    stdioServer,
 		immich:         immichClient,
 		cache:          cacheStore,
 		rateLimiter:    rateLimiter,
@@ -85,9 +89,16 @@ func New(cfg *config.Config) (*Server, error) {
 	return s, nil
 }
 
-// Start starts the server with StreamableHTTP transport
-func (s *Server) Start(ctx context.Context) error {
-	return s.startHTTP(ctx)
+// Start starts the server with the requested transport
+func (s *Server) Start(ctx context.Context, transportMode string) error {
+	switch transportMode {
+	case "http":
+		return s.startHTTP(ctx)
+	case "stdio":
+		return s.startStdio(ctx)
+	default:
+		return fmt.Errorf("unsupported transport mode: %s", transportMode)
+	}
 }
 
 // startHTTP starts the server with StreamableHTTP transport
@@ -138,6 +149,12 @@ func (s *Server) startHTTP(ctx context.Context) error {
 	case err := <-errChan:
 		return err
 	}
+}
+
+// startStdio starts the server using stdio transport
+func (s *Server) startStdio(ctx context.Context) error {
+	log.Info().Msg("Starting stdio server")
+	return s.stdioServer.Listen(ctx, os.Stdin, os.Stdout)
 }
 
 // handleHealth handles health check requests
