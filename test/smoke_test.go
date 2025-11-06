@@ -80,7 +80,9 @@ func setupTestServer(t *testing.T, cfg *TestConfig) *server.MCPServer {
 	mcpServer := server.NewMCPServer("test-server", "1.0.0")
 
 	// Register all tools
-	tools.RegisterTools(mcpServer, immichClient, cacheStore)
+	if err := tools.RegisterTools(mcpServer, immichClient, cacheStore); err != nil {
+		t.Fatalf("failed to register tools: %v", err)
+	}
 
 	return mcpServer
 }
@@ -203,7 +205,7 @@ func TestSpecificPhotoID(t *testing.T) {
 	t.Run("search for specific photo", func(t *testing.T) {
 		// Try to query photos and find this specific one
 		result, err := callTool(t, srv, "queryPhotos", map[string]interface{}{
-			"ids":  []string{specificPhotoID},
+			"ids":   []string{specificPhotoID},
 			"limit": 1,
 		})
 
@@ -401,7 +403,7 @@ func TestSearchByLocation(t *testing.T) {
 	srv := setupTestServer(t, cfg)
 
 	result, err := callTool(t, srv, "searchByLocation", map[string]interface{}{
-		"latitude":  40.7128,  // New York City
+		"latitude":  40.7128, // New York City
 		"longitude": -74.0060,
 		"radius":    10000, // 10km
 		"limit":     5,
@@ -813,7 +815,7 @@ func TestMoveSmallImagesToAlbum(t *testing.T) {
 		"albumName":    "Small Images Test",
 		"maxDimension": 200,
 		"dryRun":       true,
-		"maxImages":    100,  // Increased to scan more images
+		"maxImages":    100, // Increased to scan more images
 	})
 
 	require.NoError(t, err)

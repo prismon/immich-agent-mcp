@@ -53,7 +53,9 @@ func main() {
 	immichClient := immich.NewClient(cfg.ImmichURL, cfg.ImmichAPIKey, 30*time.Second)
 	cacheStore := cache.New(5*time.Minute, 10*time.Minute)
 	mcpServer := server.NewMCPServer("test-server", "1.0.0")
-	tools.RegisterTools(mcpServer, immichClient, cacheStore)
+	if err := tools.RegisterTools(mcpServer, immichClient, cacheStore); err != nil {
+		log.Fatal("failed to register tools: ", err)
+	}
 
 	ctx := context.Background()
 
